@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import numpy as np
 from sklearn.impute import SimpleImputer
+from sklearn.model_selection import train_test_split
 from pathlib import Path
 
 from utils import functions as uf
@@ -15,16 +16,25 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 csv_files = glob.glob(os.path.join(folder_path, '*c000.csv'))
 df_all = pd.concat((pd.read_csv(file, sep=";") for file in csv_files), ignore_index=True)
-    
+
 random_seed = 42
-train_df = df_all
 id_col = "user_id"
 
+forget_path = Path(folder_path)/'forget_data.csv'
+forget_ids = pd.read_csv(forget_path)[id_col]
 
-# here must be the code to divide train / val / test / forget sets
+forget_df = df_all[df_all[id_col].isin(forget_ids)].reset_index(drop=True)
+retain_df = df_all[~df_all[id_col].isin(forget_ids)].reset_index(drop=True)
+
+train_df, val_df = train_test_split(retain_df, test_size=0.15, random_state=random_seed)
+train_df = train_df.reset_index(drop=True)
+val_df = val_df.reset_index(drop=True)
+
+print(f"Retain pool: {len(retain_df)} \nForget set: {len(forget_df)}\n")
+print(f"Train: {len(train_df)} \nVal: {len(val_df)}\n")
 
 
-X_train, y_train, feature_cols, target_cols = uf.prepare_data(train_df, id_col=id_col, target_prefix='target__') # careful! here the train is not the real train set
+X_train, y_train, feature_cols, target_cols = uf.prepare_data(train_df, id_col=id_col, target_prefix='target__')
 
 imputer = SimpleImputer(strategy='median')
 X_train = imputer.fit_transform(X_train).astype(np.float32)
