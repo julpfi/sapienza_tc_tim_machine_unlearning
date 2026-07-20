@@ -1,3 +1,9 @@
+# Submission output folders (generated, not code)
+TIMidi_V*/
+
+# Editor settings (personal)
+.vscode/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
