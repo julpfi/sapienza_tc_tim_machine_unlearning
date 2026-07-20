@@ -9,8 +9,7 @@ from pathlib import Path
 
 from utils import functions as uf
 from utils.model import DynamicMLP
-from utils.eval import precision_at_k, mia_auc
-
+    
 
 
 # --- Setup & Decleration --- 
@@ -83,22 +82,7 @@ except NameError:
     raise
 
 model.load_state_dict(state_dict)
-
+print(sum(p.numel() for p in model.parameters()))
 model.eval()
 
 print("\nModel successfully reconstructed and weights loaded.")
-
-
-# evaluation: imputer fitted on train, transform only here
-X_val, y_val, _, _ = uf.prepare_data(val_df, id_col=id_col, target_prefix='target__')
-X_val = imputer.transform(X_val).astype(np.float32)
-
-X_forget, y_forget, _, _ = uf.prepare_data(forget_df, id_col=id_col, target_prefix='target__')
-X_forget = imputer.transform(X_forget).astype(np.float32)
-
-p10 = precision_at_k(model, X_val, y_val, k=10)
-print(f"\nPrecision@10 (validation): {p10:.4f}")
-
-auc = mia_auc(model, X_forget, y_forget, X_val, y_val)
-mia_score = 1.0 - 2.0 * abs(auc - 0.5)
-print(f"MIA AUC (forget vs val): {auc:.4f}  ->  MIA score: {mia_score:.4f}")
