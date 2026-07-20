@@ -1,3 +1,4 @@
+import copy
 import torch
 import glob
 import os
@@ -8,6 +9,7 @@ from sklearn.model_selection import train_test_split
 from pathlib import Path
 
 from utils import functions as uf
+from utils import unlearning as uu
 from utils.model import DynamicMLP
     
 
@@ -86,3 +88,9 @@ print(sum(p.numel() for p in model.parameters()))
 model.eval()
 
 print("\nModel successfully reconstructed and weights loaded.")
+
+
+
+# --- Baseline unlearning: fine-tune on retain set only ---
+unlearned_model = copy.deepcopy(model)
+unlearned_model = uu.fine_tune(unlearned_model, X_train, y_train, pos_weights, device)
