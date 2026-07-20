@@ -26,6 +26,7 @@ csv_files = glob.glob(os.path.join(folder_path, '*c000.csv'))
 df_all = pd.concat((pd.read_csv(file, sep=";") for file in csv_files), ignore_index=True)
 
 random_seed = 42
+torch.manual_seed(random_seed)
 id_col = "user_id"
 
 
@@ -84,6 +85,7 @@ except NameError:
     raise
 
 model.load_state_dict(state_dict)
+model.to(device)
 print(sum(p.numel() for p in model.parameters()))
 model.eval()
 
