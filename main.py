@@ -23,10 +23,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--submit", action="store_true",
                     help="write the submission folder (TIMidi_V*)")
 parser.add_argument("--method", default="finetune",
-                    choices=["finetune", "gradasc", "ssd"],
+                    choices=["finetune", "gradasc", "ssd", "fisher"],
                     help="unlearning method to run")
 parser.add_argument("--alpha", type=float, default=5.0, help="SSD selection threshold")
 parser.add_argument("--lam", type=float, default=2.0, help="SSD dampening strength")
+parser.add_argument("--sigma", type=float, default=1e-6, help="Fisher forgetting noise scale")
+parser.add_argument("--fisher-eps", type=float, default=1e-4, help="Fisher forgetting stabilizer")
 args = parser.parse_args()
 
 folder_path = './data/'
@@ -128,6 +130,9 @@ elif args.method == "ssd":
     unlearned_model = uu.ssd_unlearn(unlearned_model, X_forget, y_forget,
                                      X_train, y_train, pos_weights, device,
                                      alpha=args.alpha, lam=args.lam)
+elif args.method == "fisher":
+    unlearned_model = uu.fisher_forget(unlearned_model, X_train, y_train, pos_weights, device,
+                                       sigma=args.sigma, eps=args.fisher_eps)
 elapsed = time.perf_counter() - start
 
 
@@ -148,6 +153,8 @@ if args.submit:
         params = f"alpha={args.alpha}, lam={args.lam}"
     elif args.method == "gradasc":
         params = "ascent1/repair2 (default)"
+    elif args.method == "fisher":
+        params = f"sigma={args.sigma}, eps={args.fisher_eps}"
     else:
         params = "epochs=5, lr=1e-2"
     log_submission(out, args.method, params, p10, mia_score, elapsed)
