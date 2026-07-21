@@ -22,6 +22,11 @@ from utils.submission import save_submission
 parser = argparse.ArgumentParser()
 parser.add_argument("--submit", action="store_true",
                     help="write the submission folder (TIMidi_V*)")
+parser.add_argument("--method", default="finetune",
+                    choices=["finetune", "gradasc", "ssd"],
+                    help="unlearning method to run")
+parser.add_argument("--alpha", type=float, default=5.0, help="SSD selection threshold")
+parser.add_argument("--lam", type=float, default=2.0, help="SSD dampening strength")
 args = parser.parse_args()
 
 folder_path = './data/'
@@ -46,16 +51,14 @@ forget_ids = pd.read_csv(forget_path)[id_col]
 forget_df = df_all[df_all[id_col].isin(forget_ids)].reset_index(drop=True)
 retain_df = df_all[~df_all[id_col].isin(forget_ids)].reset_index(drop=True)
 
-# 70% train / 15% val / 15% test  (val = decisions, test = honest final check + MIA)
-train_df, temp_df = train_test_split(retain_df, test_size=0.30, random_state=random_seed)
-val_df, test_df = train_test_split(temp_df, test_size=0.50, random_state=random_seed)
+# 85% train / 15% val  (val = held-out for local eval + declared validation_ids)
+train_df, val_df = train_test_split(retain_df, test_size=0.15, random_state=random_seed)
 train_df = train_df.reset_index(drop=True)
 val_df = val_df.reset_index(drop=True)
-test_df = test_df.reset_index(drop=True)
 
 print("\n--- Lengths of Dataframes")
 print(f"Retain set: {len(retain_df)} \nForget set: {len(forget_df)}\n")
-print(f"Train: {len(train_df)} \nVal: {len(val_df)} \nTest: {len(test_df)}\n")
+print(f"Train: {len(train_df)} \nVal: {len(val_df)}\n")
 
 
 
@@ -109,9 +112,6 @@ print("\nModel successfully reconstructed and weights loaded.")
 X_val, y_val, _, _ = uf.prepare_data(val_df, id_col=id_col, target_prefix='target__')
 X_val = imputer.transform(X_val).astype(np.float32)
 
-X_test, y_test, _, _ = uf.prepare_data(test_df, id_col=id_col, target_prefix='target__')
-X_test = imputer.transform(X_test).astype(np.float32)
-
 X_forget, y_forget, _, _ = uf.prepare_data(forget_df, id_col=id_col, target_prefix='target__')
 X_forget = imputer.transform(X_forget).astype(np.float32)
 
@@ -119,7 +119,15 @@ X_forget = imputer.transform(X_forget).astype(np.float32)
 # --- Baseline unlearning: fine-tune on retain set only (timed) ---
 unlearned_model = copy.deepcopy(model)
 start = time.perf_counter()
-unlearned_model = uu.fine_tune(unlearned_model, X_train, y_train, pos_weights, device)
+if args.method == "finetune":
+    unlearned_model = uu.fine_tune(unlearned_model, X_train, y_train, pos_weights, device)
+elif args.method == "gradasc":
+    unlearned_model = uu.gradient_ascent(unlearned_model, X_forget, y_forget,
+                                         X_train, y_train, pos_weights, device)
+elif args.method == "ssd":
+    unlearned_model = uu.ssd_unlearn(unlearned_model, X_forget, y_forget,
+                                     X_train, y_train, pos_weights, device,
+                                     alpha=args.alpha, lam=args.lam)
 elapsed = time.perf_counter() - start
 
 
