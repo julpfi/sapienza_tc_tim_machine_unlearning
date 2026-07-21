@@ -1,8 +1,25 @@
 import os
 import inspect
 import pickle
+import datetime
 
 from utils.model import DynamicMLP
+
+
+def log_submission(out_dir, method, params, p10, mia_score, elapsed,
+                   log_path="submissions.md", notes=""):
+    """Append one row to submissions.md (creates it with a header if missing)."""
+    version = os.path.basename(out_dir.rstrip("/"))
+    date = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    if not os.path.exists(log_path):
+        with open(log_path, "w") as f:
+            f.write("# Submissions log\n\n"
+                    "| Version | Date | Method | Params | P@10 | MIA score | Time(s) | Notes |\n"
+                    "|---|---|---|---|---|---|---|---|\n")
+    with open(log_path, "a") as f:
+        f.write(f"| {version} | {date} | {method} | {params} | "
+                f"{p10:.4f} | {mia_score:.4f} | {elapsed:.1f} | {notes} |\n")
+    print(f"Logged {version} to {log_path}")
 
 
 def next_version_dir(group="TIMidi", root="."):

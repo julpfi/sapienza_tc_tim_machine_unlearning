@@ -14,7 +14,7 @@ from utils import functions as uf
 from utils import unlearning as uu
 from utils import eval as ue
 from utils.model import DynamicMLP
-from utils.submission import save_submission
+from utils.submission import save_submission, log_submission
     
 
 
@@ -132,8 +132,8 @@ elapsed = time.perf_counter() - start
 
 
 # --- Local evaluation (test = never-seen -> MIA non-member) ---
-p10 = ue.precision_at_k(unlearned_model, X_test, y_test)
-auc = ue.mia_auc(unlearned_model, X_forget, y_forget, X_test, y_test)
+p10 = ue.precision_at_k(unlearned_model, X_val, y_val)
+auc = ue.mia_auc(unlearned_model, X_forget, y_forget, X_val, y_val)
 mia_score = 1 - 2 * abs(auc - 0.5)
 print("\n--- Local Score ---")
 print(f"Precision@10: {p10:.4f}")
@@ -143,6 +143,13 @@ print(f"Unlearning time: {elapsed:.1f}s")
 
 # --- Submission (only with --submit) ---
 if args.submit:
-    save_submission(unlearned_model, val_df, architecture, best_params, elapsed)
+    out = save_submission(unlearned_model, val_df, architecture, best_params, elapsed)
+    if args.method == "ssd":
+        params = f"alpha={args.alpha}, lam={args.lam}"
+    elif args.method == "gradasc":
+        params = "ascent1/repair2 (default)"
+    else:
+        params = "epochs=5, lr=1e-2"
+    log_submission(out, args.method, params, p10, mia_score, elapsed)
 else:
     print("\n(run with --submit to write the submission folder)")
