@@ -8,16 +8,22 @@ def _get_data_loader(X, y, batch_size, shuffle=True):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
-def fine_tune(model, X_retain, y_retain, pos_weights, device, epochs=5, lr=1e-2, batch_size=256):
+def fine_tune(model, X_retain, y_retain, pos_weights, device, epochs=5, lr=1e-2,
+              batch_size=256, optimizer="sgd"):
     """
-    Baseline unlearning - continue SGD on the retain set Dr for a few epochs
+    Fine-tune on the retain set Dr. Heavier training pushes the model toward
+    A(Dr) (the retrain-on-retain reference). Use optimizer="adam" + more epochs
+    for the "invasive" variant.
     """
-    print("\nExecute fine_tune()")
+    print(f"\nExecute fine_tune() [opt={optimizer}, epochs={epochs}, lr={lr}]")
     model.to(device)
     model.train()
 
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weights.to(device=device, dtype=torch.float32))
-    optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+    if optimizer == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=lr)
     loader = _get_data_loader(X_retain, y_retain, batch_size)
 
     for epoch in range(epochs):

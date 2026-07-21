@@ -29,7 +29,14 @@ parser.add_argument("--alpha", type=float, default=5.0, help="SSD selection thre
 parser.add_argument("--lam", type=float, default=2.0, help="SSD dampening strength")
 parser.add_argument("--sigma", type=float, default=1e-6, help="Fisher forgetting noise scale")
 parser.add_argument("--fisher-eps", type=float, default=1e-4, help="Fisher forgetting stabilizer")
+parser.add_argument("--ft-epochs", type=int, default=5, help="fine-tune epochs")
+parser.add_argument("--ft-lr", type=float, default=1e-2, help="fine-tune learning rate")
+parser.add_argument("--ft-opt", default="sgd", choices=["sgd", "adam"], help="fine-tune optimizer")
+parser.add_argument("--ft-batch", type=int, default=256, help="fine-tune batch size")
+parser.add_argument("--ft-subsample", type=float, default=1.0,
+                    help="fraction of zero-label users to keep for fine-tune (speedup)")
 args = parser.parse_args()
+np.random.seed(42)
 
 folder_path = './data/'
 artifact_path = Path('data') / 'model_artifact'
@@ -122,7 +129,15 @@ X_forget = imputer.transform(X_forget).astype(np.float32)
 unlearned_model = copy.deepcopy(model)
 start = time.perf_counter()
 if args.method == "finetune":
-    unlearned_model = uu.fine_tune(unlearned_model, X_train, y_train, pos_weights, device)
+    X_ft, y_ft = X_train, y_train
+    if args.ft_subsample < 1.0:
+        has_label = y_train.sum(axis=1) > 0                      # keep every informative user
+        keep = has_label | (np.random.rand(len(y_train)) < args.ft_subsample)
+        X_ft, y_ft = X_train[keep], y_train[keep]
+        print(f"fine-tune on {len(X_ft)}/{len(X_train)} rows (subsample={args.ft_subsample})")
+    unlearned_model = uu.fine_tune(unlearned_model, X_ft, y_ft, pos_weights, device,
+                                   epochs=args.ft_epochs, lr=args.ft_lr,
+                                   batch_size=args.ft_batch, optimizer=args.ft_opt)
 elif args.method == "gradasc":
     unlearned_model = uu.gradient_ascent(unlearned_model, X_forget, y_forget,
                                          X_train, y_train, pos_weights, device)
@@ -156,7 +171,7 @@ if args.submit:
     elif args.method == "fisher":
         params = f"sigma={args.sigma}, eps={args.fisher_eps}"
     else:
-        params = "epochs=5, lr=1e-2"
+        params = f"opt={args.ft_opt}, epochs={args.ft_epochs}, lr={args.ft_lr}"
     log_submission(out, args.method, params, p10, mia_score, elapsed)
 else:
     print("\n(run with --submit to write the submission folder)")
