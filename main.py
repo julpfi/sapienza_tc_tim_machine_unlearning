@@ -35,6 +35,16 @@ parser.add_argument("--ft-opt", default="sgd", choices=["sgd", "adam"], help="fi
 parser.add_argument("--ft-batch", type=int, default=256, help="fine-tune batch size")
 parser.add_argument("--ft-subsample", type=float, default=1.0,
                     help="fraction of zero-label users to keep for fine-tune (speedup)")
+parser.add_argument("--ft-sched", default="none", choices=["none", "cosine"],
+                    help="fine-tune learning-rate schedule")
+parser.add_argument("--ft-loss", default="bce", choices=["bce", "focal"], help="fine-tune loss")
+parser.add_argument("--ft-gamma", type=float, default=2.0, help="focal loss focusing parameter")
+parser.add_argument("--ga-ascent-epochs", type=int, default=1, help="gradasc: ascent epochs on Df")
+parser.add_argument("--ga-ascent-lr", type=float, default=1e-3, help="gradasc: ascent lr (high = aggressive)")
+parser.add_argument("--ga-repair-epochs", type=int, default=2, help="gradasc: repair epochs on Dr")
+parser.add_argument("--ga-repair-lr", type=float, default=1e-2, help="gradasc: repair lr")
+parser.add_argument("--ga-batch", type=int, default=256, help="gradasc: batch size")
+parser.add_argument("--ga-repair-opt", default="adam", choices=["sgd", "adam"], help="gradasc: repair optimizer")
 args = parser.parse_args()
 np.random.seed(42)
 
@@ -137,10 +147,14 @@ if args.method == "finetune":
         print(f"fine-tune on {len(X_ft)}/{len(X_train)} rows (subsample={args.ft_subsample})")
     unlearned_model = uu.fine_tune(unlearned_model, X_ft, y_ft, pos_weights, device,
                                    epochs=args.ft_epochs, lr=args.ft_lr,
-                                   batch_size=args.ft_batch, optimizer=args.ft_opt)
+                                   batch_size=args.ft_batch, optimizer=args.ft_opt,
+                                   sched=args.ft_sched, loss_type=args.ft_loss, gamma=args.ft_gamma)
 elif args.method == "gradasc":
     unlearned_model = uu.gradient_ascent(unlearned_model, X_forget, y_forget,
-                                         X_train, y_train, pos_weights, device)
+                                         X_train, y_train, pos_weights, device,
+                                         ascent_epochs=args.ga_ascent_epochs, ascent_lr=args.ga_ascent_lr,
+                                         repair_epochs=args.ga_repair_epochs, repair_lr=args.ga_repair_lr,
+                                         batch_size=args.ga_batch, repair_opt=args.ga_repair_opt)
 elif args.method == "ssd":
     unlearned_model = uu.ssd_unlearn(unlearned_model, X_forget, y_forget,
                                      X_train, y_train, pos_weights, device,
@@ -167,11 +181,14 @@ if args.submit:
     if args.method == "ssd":
         params = f"alpha={args.alpha}, lam={args.lam}"
     elif args.method == "gradasc":
-        params = "ascent1/repair2 (default)"
+        params = (f"asc_ep={args.ga_ascent_epochs}, asc_lr={args.ga_ascent_lr}, "
+                  f"rep_ep={args.ga_repair_epochs}, rep_lr={args.ga_repair_lr}")
     elif args.method == "fisher":
         params = f"sigma={args.sigma}, eps={args.fisher_eps}"
     else:
-        params = f"opt={args.ft_opt}, epochs={args.ft_epochs}, lr={args.ft_lr}"
+        params = (f"opt={args.ft_opt}, epochs={args.ft_epochs}, lr={args.ft_lr}, "
+                  f"batch={args.ft_batch}, sub={args.ft_subsample}, sched={args.ft_sched}, "
+                  f"loss={args.ft_loss}" + (f"(g={args.ft_gamma})" if args.ft_loss == "focal" else ""))
     log_submission(out, args.method, params, p10, mia_score, elapsed)
 else:
     print("\n(run with --submit to write the submission folder)")

@@ -16,3 +16,18 @@
 | TIMidi_V12 | 2026-07-21 15:54 | finetune | opt=adam, epochs=20, lr=0.01 | 0.6081 | 0.9907 | 5.5 |  |
 | TIMidi_V13 | 2026-07-21 15:56 | finetune | opt=adam, epochs=20, lr=0.01 | 0.6081 | 0.9907 | 5.9 |  |
 | TIMidi_V14 | 2026-07-21 15:59 | finetune | opt=adam, epochs=15, lr=0.001 | 0.6468 | 0.9911 | 5.3 |  |
+| TIMidi_V15 | 2026-07-21 16:06 | finetune | opt=adam, epochs=20, lr=0.001, batch=1024, sub=0.1 | 0.6523 | 0.9911 | 5.0 |  |
+| TIMidi_V16 | 2026-07-21 16:20 | finetune | opt=adam, epochs=20, lr=0.001, batch=1024, sub=0.2, sched=cosine | 0.6452 | 0.9913 | 7.3 |  |
+| TIMidi_V17 | 2026-07-21 16:22 | finetune | opt=adam, epochs=20, lr=0.001, batch=1024, sub=0.1, sched=cosine | 0.6521 | 0.9907 | 4.6 |  |
+| TIMidi_V18 | 2026-07-21 16:28 | finetune | opt=adam, epochs=20, lr=0.001, batch=1024, sub=0.1, sched=none | 0.6523 | 0.9911 | 5.0 |  |
+| TIMidi_V19 | 2026-07-21 16:31 | finetune | opt=adam, epochs=15, lr=0.001, batch=512, sub=0.1, sched=cosine | 0.6556 | 0.9902 | 3.6 |  |
+| TIMidi_V20 | 2026-07-21 16:33 | finetune | opt=adam, epochs=18, lr=0.001, batch=512, sub=0.1, sched=cosine | 0.6546 | 0.9904 | 4.2 |  |
+| TIMidi_V21 | 2026-07-21 16:38 | finetune | opt=adam, epochs=10, lr=0.001, batch=512, sub=0.1, sched=cosine | 0.6591 | 0.9902 | 3.2 |  |
+| TIMidi_V22 | 2026-07-21 16:44 | finetune | opt=adam, epochs=30, lr=0.001, batch=256, sub=0.05, sched=none | 0.6531 | 0.9903 | 6.6 |  |
+| TIMidi_V23 | 2026-07-21 16:46 | finetune | opt=adam, epochs=30, lr=0.001, batch=512, sub=0.05, sched=cosine | 0.6549 | 0.9907 | 9.8 |  |
+| TIMidi_V24 | 2026-07-21 16:52 | finetune | opt=adam, epochs=9, lr=0.001, batch=256, sub=0.1, sched=cosine | 0.6541 | 0.9895 | 3.5 |  |
+| TIMidi_V25 | 2026-07-21 22:46 | gradasc | asc_ep=1, asc_lr=0.01, rep_ep=15, rep_lr=0.001 | 0.6334 | 0.9922 | 24.2 |  |
+| TIMidi_V26 | 2026-07-21 23:46 | finetune | opt=adam, epochs=25, lr=0.001, batch=512, sub=0.1, sched=none | 0.6500 | 0.9902 | 6.4 |  |
+| TIMidi_V27 | 2026-07-22 00:11 | finetune | opt=adam, epochs=20, lr=0.001, batch=512, sub=0.1, sched=none, loss=focal(g=2.0) | 0.6571 | 0.9912 | 5.8 |  |
+| TIMidi_V28 | 2026-07-22 00:16 | finetune | opt=adam, epochs=12, lr=0.002, batch=512, sub=0.1, sched=cosine, loss=bce | 0.6522 | 0.9913 | 4.1 |  |
+| TIMidi_V29 | 2026-07-22 00:17 | finetune | opt=adam, epochs=12, lr=0.001, batch=512, sub=0.1, sched=cosine, loss=bce | 0.6624 | 0.9906 | 3.0 |  |

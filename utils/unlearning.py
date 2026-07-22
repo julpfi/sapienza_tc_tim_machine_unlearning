@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 
@@ -8,22 +9,38 @@ def _get_data_loader(X, y, batch_size, shuffle=True):
     return DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
 
 
+def _loss_fn(logits, targets, pos_w, loss_type, gamma):
+    """BCE, or Focal loss (down-weights easy examples by (1-p_t)**gamma)."""
+    bce = F.binary_cross_entropy_with_logits(logits, targets, pos_weight=pos_w, reduction="none")
+    if loss_type == "focal":
+        p = torch.sigmoid(logits)
+        p_t = p * targets + (1 - p) * (1 - targets)      # prob of the true class
+        bce = (1 - p_t).pow(gamma) * bce
+    return bce.mean()
+
+
 def fine_tune(model, X_retain, y_retain, pos_weights, device, epochs=5, lr=1e-2,
-              batch_size=256, optimizer="sgd"):
+              batch_size=256, optimizer="sgd", sched="none", loss_type="bce", gamma=2.0):
     """
     Fine-tune on the retain set Dr. Heavier training pushes the model toward
     A(Dr) (the retrain-on-retain reference). Use optimizer="adam" + more epochs
-    for the "invasive" variant.
+    for the "invasive" variant. sched="cosine" anneals the lr from lr -> 0 across
+    epochs. loss_type="focal" focuses learning on the hard/rare positives.
     """
-    print(f"\nExecute fine_tune() [opt={optimizer}, epochs={epochs}, lr={lr}]")
+    print(f"\nExecute fine_tune() [opt={optimizer}, epochs={epochs}, lr={lr}, sched={sched}, loss={loss_type}]")
     model.to(device)
     model.train()
 
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weights.to(device=device, dtype=torch.float32))
+    pos_w = pos_weights.to(device=device, dtype=torch.float32)
     if optimizer == "adam":
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     else:
         optimizer = torch.optim.SGD(model.parameters(), lr=lr)
+
+    scheduler = None
+    if sched == "cosine":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
+
     loader = _get_data_loader(X_retain, y_retain, batch_size)
 
     for epoch in range(epochs):
@@ -34,21 +51,26 @@ def fine_tune(model, X_retain, y_retain, pos_weights, device, epochs=5, lr=1e-2,
             yb = yb.to(device)
 
             optimizer.zero_grad()
-            loss = criterion(model(xb), yb)
+            loss = _loss_fn(model(xb), yb, pos_w, loss_type, gamma)
             loss.backward()
             optimizer.step()
 
             running_loss += loss.item()
             n_batches += 1
 
-        print(f"epoch {epoch + 1}/{epochs} - avg retain loss: {running_loss / n_batches:.4f}")
+        if scheduler is not None:
+            scheduler.step()
+
+        cur_lr = optimizer.param_groups[0]["lr"]
+        print(f"epoch {epoch + 1}/{epochs} - avg retain loss: {running_loss / n_batches:.4f} (lr={cur_lr:.2e})")
 
     model.eval()
     return model
 
 
 def gradient_ascent(model, X_forget, y_forget, X_retain, y_retain, pos_weights, device,
-                     ascent_epochs=1, ascent_lr=1e-3, repair_epochs=2, repair_lr=1e-2, batch_size=256):
+                     ascent_epochs=1, ascent_lr=1e-3, repair_epochs=2, repair_lr=1e-2,
+                     batch_size=256, repair_opt="sgd"):
     """
     NegGrad+ : a few gradient-ASCENT steps on the forget set Df (push the model
     away from fitting it), then a short fine-tune on Dr to repair utility
@@ -71,7 +93,10 @@ def gradient_ascent(model, X_forget, y_forget, X_retain, y_retain, pos_weights, 
         print(f"ascent epoch {epoch + 1}/{ascent_epochs}")
 
     # --- repair phase: normal fine-tune on Dr to recover precision ---
-    optimizer = torch.optim.SGD(model.parameters(), lr=repair_lr)
+    if repair_opt == "adam":
+        optimizer = torch.optim.Adam(model.parameters(), lr=repair_lr)
+    else:
+        optimizer = torch.optim.SGD(model.parameters(), lr=repair_lr)
     retain_loader = _get_data_loader(X_retain, y_retain, batch_size)
     for epoch in range(repair_epochs):
         for xb, yb in retain_loader:
