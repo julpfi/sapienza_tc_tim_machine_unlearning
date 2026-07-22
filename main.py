@@ -38,6 +38,18 @@ parser.add_argument("--ft-opt", default="sgd", choices=["sgd", "adam"], help="fi
 parser.add_argument("--ft-batch", type=int, default=256, help="fine-tune batch size")
 parser.add_argument("--ft-subsample", type=float, default=1.0,
                     help="fraction of zero-label users to keep for fine-tune (speedup)")
+parser.add_argument("--ft-sched", default="none", choices=["none", "cosine"],
+                    help="fine-tune learning-rate schedule")
+parser.add_argument("--ft-loss", default="bce", choices=["bce", "focal"], help="fine-tune loss")
+parser.add_argument("--ft-gamma", type=float, default=2.0, help="focal loss focusing parameter")
+parser.add_argument("--ga-ascent-epochs", type=int, default=1, help="gradasc: ascent epochs on Df")
+parser.add_argument("--ga-ascent-lr", type=float, default=1e-3, help="gradasc: ascent lr (high = aggressive)")
+parser.add_argument("--ga-repair-epochs", type=int, default=2, help="gradasc: repair epochs on Dr")
+parser.add_argument("--ga-repair-lr", type=float, default=1e-2, help="gradasc: repair lr")
+parser.add_argument("--ga-batch", type=int, default=256, help="gradasc: batch size")
+parser.add_argument("--ga-repair-opt", default="adam", choices=["sgd", "adam"], help="gradasc: repair optimizer")
+parser.add_argument("--recal-epochs", type=int, default=300, help="recalibrate_head epochs")
+parser.add_argument("--recal-lr", type=float, default=0.1, help="recalibrate_head lr")
 args = parser.parse_args()
 np.random.seed(42)
 ssd_layers = tuple(s.strip() for s in args.ssd_layers.split(",") if s.strip())
