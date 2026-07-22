@@ -23,10 +23,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--submit", action="store_true",
                     help="write the submission folder (TIMidi_V*)")
 parser.add_argument("--method", default="finetune",
-                    choices=["finetune", "gradasc", "ssd", "fisher"],
+                    choices=["finetune", "gradasc", "ssd", "fisher", "recalibrate"],
                     help="unlearning method to run")
 parser.add_argument("--alpha", type=float, default=5.0, help="SSD selection threshold")
 parser.add_argument("--lam", type=float, default=2.0, help="SSD dampening strength")
+parser.add_argument("--ssd-layers", default="net.3",
+                    help="comma-separated module prefixes ssd_unlearn is allowed to touch "
+                         "(explicit here since the function default silently changed to net.3-only)")
 parser.add_argument("--sigma", type=float, default=1e-6, help="Fisher forgetting noise scale")
 parser.add_argument("--fisher-eps", type=float, default=1e-4, help="Fisher forgetting stabilizer")
 parser.add_argument("--ft-epochs", type=int, default=5, help="fine-tune epochs")
@@ -35,18 +38,9 @@ parser.add_argument("--ft-opt", default="sgd", choices=["sgd", "adam"], help="fi
 parser.add_argument("--ft-batch", type=int, default=256, help="fine-tune batch size")
 parser.add_argument("--ft-subsample", type=float, default=1.0,
                     help="fraction of zero-label users to keep for fine-tune (speedup)")
-parser.add_argument("--ft-sched", default="none", choices=["none", "cosine"],
-                    help="fine-tune learning-rate schedule")
-parser.add_argument("--ft-loss", default="bce", choices=["bce", "focal"], help="fine-tune loss")
-parser.add_argument("--ft-gamma", type=float, default=2.0, help="focal loss focusing parameter")
-parser.add_argument("--ga-ascent-epochs", type=int, default=1, help="gradasc: ascent epochs on Df")
-parser.add_argument("--ga-ascent-lr", type=float, default=1e-3, help="gradasc: ascent lr (high = aggressive)")
-parser.add_argument("--ga-repair-epochs", type=int, default=2, help="gradasc: repair epochs on Dr")
-parser.add_argument("--ga-repair-lr", type=float, default=1e-2, help="gradasc: repair lr")
-parser.add_argument("--ga-batch", type=int, default=256, help="gradasc: batch size")
-parser.add_argument("--ga-repair-opt", default="adam", choices=["sgd", "adam"], help="gradasc: repair optimizer")
 args = parser.parse_args()
 np.random.seed(42)
+ssd_layers = tuple(s.strip() for s in args.ssd_layers.split(",") if s.strip())
 
 folder_path = './data/'
 artifact_path = Path('data') / 'model_artifact'
@@ -158,10 +152,19 @@ elif args.method == "gradasc":
 elif args.method == "ssd":
     unlearned_model = uu.ssd_unlearn(unlearned_model, X_forget, y_forget,
                                      X_train, y_train, pos_weights, device,
-                                     alpha=args.alpha, lam=args.lam)
+                                     alpha=args.alpha, lam=args.lam, layers=ssd_layers)
 elif args.method == "fisher":
     unlearned_model = uu.fisher_forget(unlearned_model, X_train, y_train, pos_weights, device,
                                        sigma=args.sigma, eps=args.fisher_eps)
+elif args.method == "recalibrate":
+    X_ss, y_ss = X_train, y_train
+    if args.ft_subsample < 1.0:
+        has_label = y_train.sum(axis=1) > 0                      # keep every informative user
+        keep = has_label | (np.random.rand(len(y_train)) < args.ft_subsample)
+        X_ss, y_ss = X_train[keep], y_train[keep]
+        print(f"recalibrate on {len(X_ss)}/{len(X_train)} rows (subsample={args.ft_subsample})")
+    unlearned_model = uu.recalibrate_head(unlearned_model, X_ss, y_ss, device,
+                                          epochs=args.recal_epochs, lr=args.recal_lr)
 elapsed = time.perf_counter() - start
 
 
@@ -179,12 +182,14 @@ print(f"Unlearning time: {elapsed:.1f}s")
 if args.submit:
     out = save_submission(unlearned_model, val_df, architecture, best_params, elapsed)
     if args.method == "ssd":
-        params = f"alpha={args.alpha}, lam={args.lam}"
+        params = f"alpha={args.alpha}, lam={args.lam}, layers={ssd_layers}"
     elif args.method == "gradasc":
         params = (f"asc_ep={args.ga_ascent_epochs}, asc_lr={args.ga_ascent_lr}, "
                   f"rep_ep={args.ga_repair_epochs}, rep_lr={args.ga_repair_lr}")
     elif args.method == "fisher":
         params = f"sigma={args.sigma}, eps={args.fisher_eps}"
+    elif args.method == "recalibrate":
+        params = f"epochs={args.recal_epochs}, lr={args.recal_lr}"
     else:
         params = (f"opt={args.ft_opt}, epochs={args.ft_epochs}, lr={args.ft_lr}, "
                   f"batch={args.ft_batch}, sub={args.ft_subsample}, sched={args.ft_sched}, "

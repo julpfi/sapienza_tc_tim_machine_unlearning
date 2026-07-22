@@ -31,3 +31,7 @@
 | TIMidi_V27 | 2026-07-22 00:11 | finetune | opt=adam, epochs=20, lr=0.001, batch=512, sub=0.1, sched=none, loss=focal(g=2.0) | 0.6571 | 0.9912 | 5.8 |  |
 | TIMidi_V28 | 2026-07-22 00:16 | finetune | opt=adam, epochs=12, lr=0.002, batch=512, sub=0.1, sched=cosine, loss=bce | 0.6522 | 0.9913 | 4.1 |  |
 | TIMidi_V29 | 2026-07-22 00:17 | finetune | opt=adam, epochs=12, lr=0.001, batch=512, sub=0.1, sched=cosine, loss=bce | 0.6624 | 0.9906 | 3.0 |  |
+| TIMidi_V201 | 2026-07-21 17:04 | recalibrate | epochs=300, lr=0.1 | 0.6813 | 0.9856 | 16.3 |  |
+| TIMidi_V202 | 2026-07-22 10:23 | recalibrate | epochs=300, lr=0.1 | 0.6813 | 0.9856 | 14.6 |  |
+| TIMidi_V203 | 2026-07-22 10:28 | recalibrate | epochs=300, lr=0.1 | 0.6781 | 0.9854 | 3.7 |  |
+| TIMidi_V204 | 2026-07-22 10:33 | recalibrate | epochs=300, lr=0.1 | 0.6787 | 0.9854 | 3.1 |  |
