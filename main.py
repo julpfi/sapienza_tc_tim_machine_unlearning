@@ -23,10 +23,13 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--submit", action="store_true",
                     help="write the submission folder (TIMidi_V*)")
 parser.add_argument("--method", default="finetune",
-                    choices=["finetune", "gradasc", "ssd", "fisher"],
+                    choices=["finetune", "gradasc", "ssd", "fisher", "recalibrate"],
                     help="unlearning method to run")
 parser.add_argument("--alpha", type=float, default=5.0, help="SSD selection threshold")
 parser.add_argument("--lam", type=float, default=2.0, help="SSD dampening strength")
+parser.add_argument("--ssd-layers", default="net.3",
+                    help="comma-separated module prefixes ssd_unlearn is allowed to touch "
+                         "(explicit here since the function default silently changed to net.3-only)")
 parser.add_argument("--sigma", type=float, default=1e-6, help="Fisher forgetting noise scale")
 parser.add_argument("--fisher-eps", type=float, default=1e-4, help="Fisher forgetting stabilizer")
 parser.add_argument("--ft-epochs", type=int, default=5, help="fine-tune epochs")
@@ -35,8 +38,11 @@ parser.add_argument("--ft-opt", default="sgd", choices=["sgd", "adam"], help="fi
 parser.add_argument("--ft-batch", type=int, default=256, help="fine-tune batch size")
 parser.add_argument("--ft-subsample", type=float, default=1.0,
                     help="fraction of zero-label users to keep for fine-tune (speedup)")
+parser.add_argument("--recal-epochs", type=int, default=300, help="recalibrate_head epochs")
+parser.add_argument("--recal-lr", type=float, default=0.1, help="recalibrate_head lr")
 args = parser.parse_args()
 np.random.seed(42)
+ssd_layers = tuple(s.strip() for s in args.ssd_layers.split(",") if s.strip())
 
 folder_path = './data/'
 artifact_path = Path('data') / 'model_artifact'
@@ -144,10 +150,19 @@ elif args.method == "gradasc":
 elif args.method == "ssd":
     unlearned_model = uu.ssd_unlearn(unlearned_model, X_forget, y_forget,
                                      X_train, y_train, pos_weights, device,
-                                     alpha=args.alpha, lam=args.lam)
+                                     alpha=args.alpha, lam=args.lam, layers=ssd_layers)
 elif args.method == "fisher":
     unlearned_model = uu.fisher_forget(unlearned_model, X_train, y_train, pos_weights, device,
                                        sigma=args.sigma, eps=args.fisher_eps)
+elif args.method == "recalibrate":
+    X_ss, y_ss = X_train, y_train
+    if args.ft_subsample < 1.0:
+        has_label = y_train.sum(axis=1) > 0                      # keep every informative user
+        keep = has_label | (np.random.rand(len(y_train)) < args.ft_subsample)
+        X_ss, y_ss = X_train[keep], y_train[keep]
+        print(f"recalibrate on {len(X_ss)}/{len(X_train)} rows (subsample={args.ft_subsample})")
+    unlearned_model = uu.recalibrate_head(unlearned_model, X_ss, y_ss, device,
+                                          epochs=args.recal_epochs, lr=args.recal_lr)
 elapsed = time.perf_counter() - start
 
 
@@ -165,11 +180,13 @@ print(f"Unlearning time: {elapsed:.1f}s")
 if args.submit:
     out = save_submission(unlearned_model, val_df, architecture, best_params, elapsed)
     if args.method == "ssd":
-        params = f"alpha={args.alpha}, lam={args.lam}"
+        params = f"alpha={args.alpha}, lam={args.lam}, layers={ssd_layers}"
     elif args.method == "gradasc":
         params = "ascent1/repair2 (default)"
     elif args.method == "fisher":
         params = f"sigma={args.sigma}, eps={args.fisher_eps}"
+    elif args.method == "recalibrate":
+        params = f"epochs={args.recal_epochs}, lr={args.recal_lr}"
     else:
         params = f"opt={args.ft_opt}, epochs={args.ft_epochs}, lr={args.ft_lr}"
     log_submission(out, args.method, params, p10, mia_score, elapsed)
